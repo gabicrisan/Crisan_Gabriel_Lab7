@@ -49,18 +49,19 @@ namespace Crisan_Gabriel_Lab7
             inventoryViewSource = ((System.Windows.Data.CollectionViewSource)(this.FindResource("inventoryViewSource")));
             inventoryViewSource.Source = ctx.Inventories.Local;
             customerOrdersViewSource = ((System.Windows.Data.CollectionViewSource)(this.FindResource("customerOrdersViewSource")));
-            customerOrdersViewSource.Source = ctx.Orders.Local;
+            //customerOrdersViewSource.Source = ctx.Orders.Local;
             ctx.Customers.Load();
             ctx.Orders.Load();
             ctx.Inventories.Load();
             cmbCustomers.ItemsSource = ctx.Customers.Local;
-            cmbCustomers.DisplayMemberPath = "FirstName";
+            //cmbCustomers.DisplayMemberPath = "FirstName";
             cmbCustomers.SelectedValuePath = "CustId";
             cmbInventory.ItemsSource = ctx.Inventories.Local;
-            cmbInventory.DisplayMemberPath = "Make";
+            //cmbInventory.DisplayMemberPath = "Make";
             cmbInventory.SelectedValuePath = "CarId";
             // Load data by setting the CollectionViewSource.Source property:
             // inventoryViewSource.Source = [generic data source]
+            BindDataGrid();
         }
         private void btnSave_Click(object sender, RoutedEventArgs e)
         {
@@ -159,33 +160,46 @@ namespace Crisan_Gabriel_Lab7
             else
                 if (action == ActionState.Edit)
             {
+                dynamic selectedOrder = ordersDataGrid.SelectedItem;
                 try
                 {
-                    Customer customer = (Customer)customerDataGrid.SelectedItem;
-                    Inventory inventory = (Inventory)inventoryDataGrid.SelectedItem;
-                    //salvam modificarile
-                    ctx.SaveChanges();
+                    int curr_id = selectedOrder.OrderId;
+                    var editedOrder = ctx.Orders.FirstOrDefault(s => s.OrderId == curr_id);
+                    if (editedOrder != null)
+                    {
+                        editedOrder.CustId = Int32.Parse(cmbCustomers.SelectedValue.ToString());
+                        editedOrder.CarId = Convert.ToInt32(cmbInventory.SelectedValue.ToString());
+                        //salvam modificarile
+                        ctx.SaveChanges();
+                    }
                 }
                 catch (DataException ex)
                 {
                     MessageBox.Show(ex.Message);
                 }
-                customerOrdersViewSource.View.Refresh();
-                // pozitionarea pe item-ul curent 
+                BindDataGrid();
+                // pozitionarea pe item-ul curent
+                customerViewSource.View.MoveCurrentTo(selectedOrder);
             }
             else if (action == ActionState.Delete)
             {
                 try
                 {
-                    Customer customer = (Customer)customerDataGrid.SelectedItem;
-                    ctx.Customers.Remove(customer);
-                    ctx.SaveChanges();
+                    dynamic selectedOrder = ordersDataGrid.SelectedItem;
+                    int curr_id = selectedOrder.OrderId;
+                    var deletedOrder = ctx.Orders.FirstOrDefault(s => s.OrderId == curr_id);
+                    if (deletedOrder != null)
+                    {
+                        ctx.Orders.Remove(deletedOrder);
+                        ctx.SaveChanges();
+                        MessageBox.Show("Order Deleted Successfully", "Message");
+                        BindDataGrid();
+                    }
                 }
                 catch (DataException ex)
                 {
                     MessageBox.Show(ex.Message);
                 }
-                customerViewSource.View.Refresh();
             }
         }
         private void btnNextO_Click(object sender, RoutedEventArgs e)
@@ -195,6 +209,46 @@ namespace Crisan_Gabriel_Lab7
         private void btnPreviousO_Click(object sender, RoutedEventArgs e)
         {
             customerOrdersViewSource.View.MoveCurrentToPrevious();
+        }
+        private void BindDataGrid()
+        {
+            var queryOrder = from ord in ctx.Orders
+                             join cust in ctx.Customers on ord.CustId equals
+                             cust.CustId
+                             join inv in ctx.Inventories on ord.CarId
+                 equals inv.CarId
+                             select new
+                             {
+                                 ord.OrderId,
+                                 ord.CarId,
+                                 ord.CustId,
+                                 cust.FirstName,
+                                 cust.LastName,
+                                 inv.Make,
+                                 inv.Color
+                             };
+            customerOrdersViewSource.Source = queryOrder.ToList();
+        }
+        private void SetValidationBinding()
+        {
+            Binding firstNameValidationBinding = new Binding();
+            firstNameValidationBinding.Source = customerViewSource;
+            firstNameValidationBinding.Path = new PropertyPath("FirstName");
+            firstNameValidationBinding.NotifyOnValidationError = true;
+            firstNameValidationBinding.Mode = BindingMode.TwoWay;
+            firstNameValidationBinding.UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged;
+            //string required
+            firstNameValidationBinding.ValidationRules.Add(new StringNotEmpty());
+            firstNameTextBox.SetBinding(TextBox.TextProperty, firstNameValidationBinding);
+            Binding lastNameValidationBinding = new Binding();
+            lastNameValidationBinding.Source = customerViewSource;
+            lastNameValidationBinding.Path = new PropertyPath("LastName");
+            lastNameValidationBinding.NotifyOnValidationError = true;
+            lastNameValidationBinding.Mode = BindingMode.TwoWay;
+            lastNameValidationBinding.UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged;
+            //string min length validator
+            lastNameValidationBinding.ValidationRules.Add(new StringMinLengthValid());
+            lastNameTextBox.SetBinding(TextBox.TextProperty, lastNameValidationBinding); //setare binding nou
         }
     }
 }
